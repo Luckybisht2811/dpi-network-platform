@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkpoint — DPI Network Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0d14;
+    --surface: #10141d;
+    --surface-2: #151b26;
+    --border: #232a38;
+    --border-soft: #1a2130;
+    --text: #e7e9ee;
+    --text-dim: #838ba0;
+    --text-faint: #4a5268;
+    --pass: #2dd4bf;
+    --pass-dim: #12332f;
+    --hold: #f5a524;
+    --hold-dim: #3a2a10;
+    --critical: #fb7185;
+    --display: 'Space Grotesk', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--mono);
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(45, 212, 191, 0.07), transparent),
+      radial-gradient(ellipse 700px 400px at 100% 0%, rgba(245, 165, 36, 0.05), transparent),
+      var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 40px 64px;
+  }
+
+  ::selection { background: var(--pass-dim); color: var(--pass); }
+
+  /* ---------- HEADER / GATE SIGNATURE ---------- */
+
+  .gate {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: linear-gradient(180deg, var(--surface), var(--bg));
+    padding: 28px 32px 24px;
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .gate-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .gate-title-block { max-width: 560px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pulse-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--pass);
+    box-shadow: 0 0 0 0 rgba(45,212,191,0.6);
+    animation: pulse 2s infinite;
+    flex-shrink: 0;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(45,212,191,0.55); }
+    70%  { box-shadow: 0 0 0 7px rgba(45,212,191,0); }
+    100% { box-shadow: 0 0 0 0 rgba(45,212,191,0); }
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 30px;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  h1 span { color: var(--text-faint); font-weight: 500; }
+
+  .gate-desc {
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.6;
+    margin-top: 10px;
+  }
+
+  .interface-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 7px 12px;
+    border-radius: 8px;
+    white-space: nowrap;
+  }
+  .interface-tag b { color: var(--text-dim); font-weight: 600; }
+
+  /* Ambient gate lane animation */
+  .lane {
+    margin-top: 24px;
+    height: 34px;
+    position: relative;
+    border-top: 1px dashed var(--border-soft);
+    border-bottom: 1px dashed var(--border-soft);
+    overflow: hidden;
+  }
+  .lane::before, .lane::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: repeating-linear-gradient(180deg, var(--text-faint) 0 4px, transparent 4px 8px);
+    opacity: 0.5;
+  }
+  .lane::before { left: 42%; }
+  .lane::after { left: 58%; }
+  .packet {
+    position: absolute;
+    top: 50%;
+    width: 6px; height: 6px;
+    border-radius: 1px;
+    background: var(--pass);
+    transform: translateY(-50%);
+    animation: travel 4.5s linear infinite;
+  }
+  .packet.stop { background: var(--hold); animation-name: travel-stop; }
+  @keyframes travel {
+    0%   { left: -2%; opacity: 0; }
+    8%   { opacity: 1; }
+    92%  { opacity: 1; }
+    100% { left: 102%; opacity: 0; }
+  }
+  @keyframes travel-stop {
+    0%   { left: -2%; opacity: 0; }
+    8%   { opacity: 1; }
+    46%  { left: 50%; opacity: 1; background: var(--hold); }
+    54%  { left: 50%; opacity: 1; background: var(--critical); }
+    62%  { left: 50%; opacity: 0; }
+    100% { left: 50%; opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .packet, .pulse-dot { animation: none; }
+  }
+
+  /* ---------- MANIFEST / STATS ---------- */
+
+  .manifest {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+  .cell {
+    background: var(--surface);
+    padding: 18px 20px;
+  }
+  .cell .k {
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+  }
+  .cell .v {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .cell.hold .v { color: var(--hold); }
+  .cell.pass .v { color: var(--pass); }
+  .cell .unit { font-size: 13px; color: var(--text-faint); margin-left: 4px; }
+
+  /* ---------- SECTIONS ---------- */
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1.1fr 1.4fr;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 880px) {
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .panel-head {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .panel-head h2 {
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .panel-head .count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    background: var(--surface-2);
+    padding: 3px 9px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+  .panel-body { padding: 18px 20px; }
+
+  /* Watchlist */
+  .add-form {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  input[type=text] {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+  }
+  input[type=text]::placeholder { color: var(--text-faint); }
+  input[type=text]:focus {
+    outline: none;
+    border-color: var(--pass);
+    box-shadow: 0 0 0 3px var(--pass-dim);
+  }
+  button {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.1s ease;
+  }
+  button:active { transform: scale(0.97); }
+  button:focus-visible { outline: 2px solid var(--pass); outline-offset: 2px; }
+  .btn-primary { background: var(--hold); color: #1a1204; }
+  .btn-primary:hover { filter: brightness(1.1); }
+
+  .watchlist { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; }
+  .watch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    font-size: 12.5px;
+  }
+  .watch-row .domain { color: var(--text); }
+  .watch-row .domain::before { content: '⛔ '; opacity: 0.6; }
+  .x-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-faint);
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .x-btn:hover { border-color: var(--critical); color: var(--critical); }
+
+  .empty {
+    color: var(--text-faint);
+    font-size: 12.5px;
+    text-align: center;
+    padding: 28px 12px;
+    border: 1px dashed var(--border-soft);
+    border-radius: 8px;
+  }
+
+  /* Inspection log */
+  .log { display: flex; flex-direction: column; }
+  .log-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 14px;
+    align-items: center;
+    padding: 12px 4px;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 12.5px;
+  }
+  .log-row:last-child { border-bottom: none; }
+
+  .stamp {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--hold);
+    color: var(--hold);
+    background: var(--hold-dim);
+    transform: rotate(-3deg);
+    white-space: nowrap;
+  }
+
+  .log-domain { color: var(--text); word-break: break-all; }
+  .log-client { color: var(--text-faint); font-size: 11.5px; }
+  .log-time { color: var(--text-faint); font-size: 11px; white-space: nowrap; }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+
+  .footer-note {
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 11px;
+    margin-top: 28px;
+    letter-spacing: 0.02em;
+  }
+
+  .offline-banner {
+    display: none;
+    background: var(--hold-dim);
+    border: 1px solid var(--hold);
+    color: var(--hold);
+    font-size: 12px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+
+  <div class="offline-banner" id="offlineBanner">
+    ⚠ Can't reach the API at <span id="apiBaseLabel"></span> — start the FastAPI server and this will reconnect automatically.
+  </div>
+
+  <div class="gate">
+    <div class="gate-top">
+      <div class="gate-title-block">
+        <div class="eyebrow"><span class="pulse-dot"></span> GATE OPEN — MONITORING</div>
+        <h1>Checkpoint <span>/ DPI Network Platform</span></h1>
+        <p class="gate-desc">Every connection is inspected as it passes through. Hostnames on the watchlist are held at the gate; everything else clears through.</p>
+      </div>
+      <div class="interface-tag">iface: <b id="ifaceLabel">wi-fi</b></div>
+    </div>
+    <div class="lane" id="lane"></div>
+  </div>
+
+  <div class="manifest" id="statsGrid"></div>
+
+  <div class="grid-2">
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Watchlist</h2>
+        <span class="count" id="watchlistCount">—</span>
+      </div>
+      <div class="panel-body">
+        <div class="add-form">
+          <input type="text" id="domainInput" placeholder="domain to hold, e.g. netflix.com" onkeydown="if(event.key==='Enter') addDomain()">
+          <button class="btn-primary" onclick="addDomain()">Add</button>
+        </div>
+        <div class="watchlist" id="watchlist"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Inspection Log</h2>
+        <span class="count" id="logCount">—</span>
+      </div>
+      <div class="panel-body">
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer-note">refreshing every 5s · <span id="lastUpdated">—</span></div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000";
+document.getElementById("apiBaseLabel").textContent = API_BASE;
+
+// ---- ambient lane packets (decorative, not data-bound) ----
+const lane = document.getElementById("lane");
+const laneConfig = [
+  { delay: 0,    stop: false },
+  { delay: 0.9,  stop: true  },
+  { delay: 1.7,  stop: false },
+  { delay: 2.6,  stop: false },
+  { delay: 3.3,  stop: true  },
+  { delay: 4.1,  stop: false },
+];
+laneConfig.forEach(cfg => {
+  const p = document.createElement("div");
+  p.className = "packet" + (cfg.stop ? " stop" : "");
+  p.style.animationDelay = cfg.delay + "s";
+  lane.appendChild(p);
+});
+
+async function fetchJSON(path, options = {}) {
+  const res = await fetch(API_BASE + path, options);
+  if (!res.ok) {
+    const err = new Error(`${path} failed: ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+function timeAgo(timestamp) {
+  const seconds = Math.floor(Date.now() / 1000 - timestamp);
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
+}
+
+function setOffline(isOffline) {
+  document.getElementById("offlineBanner").style.display = isOffline ? "block" : "none";
+}
+
+async function loadStats() {
+  const stats = await fetchJSON("/api/statistics/");
+  const alerts = await fetchJSON("/api/alerts/summary");
+
+  document.getElementById("statsGrid").innerHTML = `
+    <div class="cell">
+      <div class="k">Inspected</div>
+      <div class="v">${stats.total_packets.toLocaleString()}<span class="unit">pkts</span></div>
+    </div>
+    <div class="cell">
+      <div class="k">Data Volume</div>
+      <div class="v">${(stats.total_bytes / 1024 / 1024).toFixed(1)}<span class="unit">MB</span></div>
+    </div>
+    <div class="cell pass">
+      <div class="k">Active Routes</div>
+      <div class="v">${stats.active_flows}</div>
+    </div>
+    <div class="cell hold">
+      <div class="k">Held at Gate</div>
+      <div class="v">${alerts.total_blocked}</div>
+    </div>
+  `;
+}
+
+async function loadWatchlist() {
+  const data = await fetchJSON("/api/policy/blocklist");
+  const container = document.getElementById("watchlist");
+  document.getElementById("watchlistCount").textContent = data.count;
+
+  if (data.domains.length === 0) {
+    container.innerHTML = `<div class="empty">Watchlist is empty — nothing is being held right now.</div>`;
+    return;
+  }
+
+  container.innerHTML = data.domains.map(domain => `
+    <div class="watch-row">
+      <span class="domain">${domain}</span>
+      <button class="x-btn" onclick="removeDomain('${domain}')" title="Remove from watchlist">✕</button>
+    </div>
+  `).join("");
+}
+
+async function loadLog() {
+  const data = await fetchJSON("/api/alerts/blocked-events?limit=12");
+  const container = document.getElementById("log");
+  document.getElementById("logCount").textContent = data.count;
+
+  if (data.events.length === 0) {
+    container.innerHTML = `<div class="empty">No holds yet — the log fills in as connections get stopped.</div>`;
+    return;
+  }
+
+  container.innerHTML = data.events.map(ev => `
+    <div class="log-row">
+      <span class="stamp">HELD</span>
+      <span class="log-domain">${ev.sni}</span>
+      <span class="log-client">${ev.client_ip}</span>
+      <span class="log-time">${timeAgo(ev.timestamp)}</span>
+    </div>
+  `).join("");
+}
+
+async function addDomain() {
+  const input = document.getElementById("domainInput");
+  const domain = input.value.trim();
+  if (!domain) return;
+
+  try {
+    await fetchJSON("/api/policy/blocklist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ domain }),
+    });
+    input.value = "";
+    loadWatchlist();
+  } catch (e) {
+    input.style.borderColor = "var(--critical)";
+    setTimeout(() => { input.style.borderColor = ""; }, 900);
+  }
+}
+
+async function removeDomain(domain) {
+  try {
+    await fetchJSON(`/api/policy/blocklist/${domain}`, { method: "DELETE" });
+    loadWatchlist();
+  } catch (e) {
+    console.error("Remove failed:", e);
+  }
+}
+
+async function refreshAll() {
+  try {
+    await Promise.all([loadStats(), loadWatchlist(), loadLog()]);
+    setOffline(false);
+    document.getElementById("lastUpdated").textContent = "updated " + new Date().toLocaleTimeString();
+  } catch (e) {
+    setOffline(true);
+  }
+}
+
+refreshAll();
+setInterval(refreshAll, 5000);
+</script>
+
+</body>
+</html>

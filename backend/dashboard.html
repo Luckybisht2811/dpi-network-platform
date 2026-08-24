@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DPI Network Platform — Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #0f1115;
+    color: #e6e6e6;
+    padding: 24px;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #888; margin-bottom: 24px; font-size: 13px; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .stat-card {
+    background: #1a1d24;
+    border: 1px solid #2a2e38;
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .stat-card .label { color: #888; font-size: 12px; text-transform: uppercase; }
+  .stat-card .value { font-size: 28px; font-weight: 600; margin-top: 6px; }
+  .stat-card.blocked .value { color: #ff5c5c; }
+  .stat-card.allowed .value { color: #4caf50; }
+
+  .section { margin-bottom: 32px; }
+  .section h2 { font-size: 16px; margin-bottom: 12px; color: #ccc; }
+
+  table { width: 100%; border-collapse: collapse; background: #1a1d24; border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #2a2e38; }
+  th { color: #888; font-weight: 500; text-transform: uppercase; font-size: 11px; }
+  tr:last-child td { border-bottom: none; }
+  .badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge.block { background: #3a1a1a; color: #ff5c5c; }
+
+  .blocklist-form { display: flex; gap: 8px; margin-bottom: 16px; }
+  input[type=text] {
+    flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #2a2e38;
+    background: #1a1d24; color: #e6e6e6; font-size: 13px;
+  }
+  button {
+    padding: 10px 16px; border-radius: 6px; border: none;
+    background: #4a90e2; color: white; cursor: pointer; font-size: 13px; font-weight: 600;
+  }
+  button:hover { background: #3a7bc8; }
+  button.remove-btn { background: #ff5c5c; padding: 4px 10px; font-size: 11px; }
+  button.remove-btn:hover { background: #e04a4a; }
+
+  .chip-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    background: #1a1d24; border: 1px solid #2a2e38; border-radius: 20px;
+    padding: 6px 12px; font-size: 12px; display: flex; align-items: center; gap: 8px;
+  }
+
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4caf50; margin-right: 6px; }
+  .refresh-note { color: #666; font-size: 11px; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+  <h1>🛡️ DPI Network Platform</h1>
+  <div class="subtitle"><span class="status-dot"></span>Live monitoring dashboard</div>
+
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <div class="section">
+    <h2>Manage Blocklist</h2>
+    <div class="blocklist-form">
+      <input type="text" id="domainInput" placeholder="e.g. instagram.com">
+      <button onclick="addDomain()">Block Domain</button>
+    </div>
+    <div class="chip-list" id="blocklistChips"></div>
+  </div>
+
+  <div class="section">
+    <h2>Recent Blocked Events</h2>
+    <table>
+      <thead>
+        <tr><th>Domain</th><th>Client IP</th><th>Time</th></tr>
+      </thead>
+      <tbody id="blockedEventsBody"></tbody>
+    </table>
+    <div class="refresh-note">Auto-refreshes every 5 seconds</div>
+  </div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000";
+
+async function fetchJSON(path, options = {}) {
+  const res = await fetch(API_BASE + path, options);
+  if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
+  return res.json();
+}
+
+function timeAgo(timestamp) {
+  const seconds = Math.floor(Date.now() / 1000 - timestamp);
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
+}
+
+async function loadStats() {
+  try {
+    const stats = await fetchJSON("/api/statistics/");
+    const alerts = await fetchJSON("/api/alerts/summary");
+
+    document.getElementById("statsGrid").innerHTML = `
+      <div class="stat-card">
+        <div class="label">Total Packets</div>
+        <div class="value">${stats.total_packets.toLocaleString()}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Total Bytes</div>
+        <div class="value">${(stats.total_bytes / 1024 / 1024).toFixed(1)} MB</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Active Flows</div>
+        <div class="value">${stats.active_flows}</div>
+      </div>
+      <div class="stat-card blocked">
+        <div class="label">Total Blocked</div>
+        <div class="value">${alerts.total_blocked}</div>
+      </div>
+    `;
+  } catch (e) {
+    console.error("Stats load failed:", e);
+  }
+}
+
+async function loadBlocklist() {
+  try {
+    const data = await fetchJSON("/api/policy/blocklist");
+    const container = document.getElementById("blocklistChips");
+    container.innerHTML = data.domains.map(domain => `
+      <div class="chip">
+        ${domain}
+        <button class="remove-btn" onclick="removeDomain('${domain}')">✕</button>
+      </div>
+    `).join("");
+  } catch (e) {
+    console.error("Blocklist load failed:", e);
+  }
+}
+
+async function loadBlockedEvents() {
+  try {
+    const data = await fetchJSON("/api/alerts/blocked-events?limit=15");
+    const body = document.getElementById("blockedEventsBody");
+
+    if (data.events.length === 0) {
+      body.innerHTML = `<tr><td colspan="3" style="color:#666;">Koi blocked event nahi mila abhi tak</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = data.events.map(ev => `
+      <tr>
+        <td><span class="badge block">🚫 ${ev.sni}</span></td>
+        <td>${ev.client_ip}</td>
+        <td>${timeAgo(ev.timestamp)}</td>
+      </tr>
+    `).join("");
+  } catch (e) {
+    console.error("Events load failed:", e);
+  }
+}
+
+async function addDomain() {
+  const input = document.getElementById("domainInput");
+  const domain = input.value.trim();
+  if (!domain) return;
+
+  try {
+    await fetchJSON("/api/policy/blocklist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ domain }),
+    });
+    input.value = "";
+    loadBlocklist();
+  } catch (e) {
+    alert("Domain add nahi ho paaya — pehle se blocked ho sakta hai");
+  }
+}
+
+async function removeDomain(domain) {
+  try {
+    await fetchJSON(`/api/policy/blocklist/${domain}`, { method: "DELETE" });
+    loadBlocklist();
+  } catch (e) {
+    alert("Remove nahi ho paaya");
+  }
+}
+
+function refreshAll() {
+  loadStats();
+  loadBlocklist();
+  loadBlockedEvents();
+}
+
+refreshAll();
+setInterval(refreshAll, 5000);
+</script>
+
+</body>
+</html>
