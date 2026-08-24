@@ -1,3 +1,134 @@
+# 🛡️ DPI Network Platform
+
+A real-time **Deep Packet Inspection (DPI)** system that captures live network traffic, extracts hostnames from encrypted HTTPS connections via TLS SNI parsing, and enforces domain-based blocking directly at the OS level — similar to how ISPs, hostels, and enterprise firewalls filter traffic.
+
+> Built from scratch to understand how network-level content filtering actually works — from raw packets to policy enforcement to a live dashboard.
+
+---
+
+## ✨ What it does
+
+- Captures live network traffic (IPv4 + IPv6) directly from the network interface
+- Parses TLS `ClientHello` packets to extract the **SNI (Server Name Indication)** — the hostname being requested, even though the connection is encrypted
+- Tracks bidirectional flows using 5-tuple connection identity (source IP/port, destination IP/port, protocol)
+- Checks each hostname against a live, Redis-backed blocklist
+- **Actively blocks** matching connections by injecting TCP RST packets at the OS level (not just logging — real enforcement)
+- Handles QUIC/HTTP3 fallback (forces browsers back to inspectable TCP/TLS)
+- Reassembles fragmented TLS handshakes that span multiple TCP packets
+- Exposes everything through a REST API and a live-updating dashboard
+
+---
+
+## 📸 Screenshots
+
+**Live dashboard** — real-time stats, blocklist management, and a feed of recently blocked connections:
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+**Active blocking in action** — `run_blocker.py` intercepting live traffic, extracting SNI, and allowing/blocking in real time:
+
+![Active blocking terminal](docs/screenshots/active-blocking-terminal.png)
+
+**Interactive API docs** — auto-generated Swagger UI for every endpoint:
+
+![Swagger API docs](docs/screenshots/swagger-api-docs.png)
+
+---
+
+## 🏗️ Architecture
+                NETWORK TRAFFIC
+                      │
+                      ▼
+          ┌───────────────────────┐
+          │   Packet Capture       │  (Scapy)
+          │   IPv4 / IPv6          │
+          └───────────┬───────────┘
+                      │
+                      ▼
+          ┌───────────────────────┐
+          │   TLS SNI Parser       │  (manual byte-level parser,
+          │   + Flow Reassembly    │   handles fragmented ClientHello)
+          └───────────┬───────────┘
+                      │
+                      ▼
+          ┌───────────────────────┐
+          │   Policy Engine        │  (Redis Set — live blocklist)
+          │   ALLOW / BLOCK        │
+          └───────────┬───────────┘
+                      │
+          ┌───────────┴───────────┐
+          ▼                       ▼
+
+┌─────────────────┐ ┌─────────────────────┐
+│ Passive Mode │ │ Active Mode │
+│ (Scapy sniff) │ │ (pydivert/WinDivert) │
+│ Log & analyze │ │ Inject TCP RST → │
+│ │ │ actually drop conn. │
+└─────────┬───────────┘ └───────────┬───────────┘
+│ │
+└──────────────┬──────────────┘
+▼
+┌───────────────────┐
+│ Redis │ (flows, blocked events,
+│ │ live blocklist, stats)
+└──────────┬──────────┘
+▼
+┌───────────────────┐
+│ FastAPI │ (REST API)
+└──────────┬──────────┘
+▼
+┌───────────────────┐
+│ Live Dashboard │ (HTML/JS, auto-refresh)
+└───────────────────┘
+
+
+---
+
+## 🧰 Tech Stack
+
+| Layer               | Technology                          |
+|----------------------|--------------------------------------|
+| Packet Capture        | Scapy, Npcap                        |
+| Active Enforcement    | pydivert (WinDivert)                |
+| Backend API            | FastAPI, Pydantic, Uvicorn          |
+| Cache / Live Storage   | Redis (Docker)                      |
+| Language                | Python 3.12                         |
+| Frontend                | Vanilla HTML/CSS/JS (no build step) |
+
+---
+
+## 📁 Project Structure
+
+backend/
+├── app/
+│ ├── main.py # FastAPI entrypoint
+│ ├── core/
+│ │ ├── config.py # Settings (.env driven)
+│ │ └── redis.py # Redis client
+│ ├── api/
+│ │ ├── flows.py # GET /api/flows
+│ │ ├── statistics.py # GET /api/statistics
+│ │ ├── alerts.py # GET /api/alerts/*
+│ │ └── policy.py # GET/POST/DELETE /api/policy/blocklist
+│ └── schemas/ # Pydantic request/response models
+│
+├── dpi/
+│ ├── capture/
+│ │ └── sniffer.py # Passive packet capture (Scapy)
+│ ├── parser/
+│ │ └── packet_parser.py # 5-tuple + TLS SNI extraction
+│ ├── flows/
+│ │ └── flow_tracker.py # Bidirectional flow tracking → Redis
+│ ├── policies/
+│ │ └── blocklist.py # Redis-backed live blocklist
+│ └── enforcement/
+│ └── blocker.py # Active blocking via pydivert
+│
+├── dashboard.html # Standalone live dashboard
+├── run_capture.py # Entry point: passive monitoring
+├── run_blocker.py # Entry point: active blocking
+└── requirements.txt
+
 
 ---
 
