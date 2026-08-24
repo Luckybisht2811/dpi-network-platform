@@ -36,51 +36,52 @@ A real-time **Deep Packet Inspection (DPI)** system that captures live network t
 ---
 
 ## 🏗️ Architecture
-                NETWORK TRAFFIC
-                      │
-                      ▼
-          ┌───────────────────────┐
-          │   Packet Capture       │  (Scapy)
-          │   IPv4 / IPv6          │
-          └───────────┬───────────┘
-                      │
-                      ▼
-          ┌───────────────────────┐
-          │   TLS SNI Parser       │  (manual byte-level parser,
-          │   + Flow Reassembly    │   handles fragmented ClientHello)
-          └───────────┬───────────┘
-                      │
-                      ▼
-          ┌───────────────────────┐
-          │   Policy Engine        │  (Redis Set — live blocklist)
-          │   ALLOW / BLOCK        │
-          └───────────┬───────────┘
-                      │
-          ┌───────────┴───────────┐
-          ▼                       ▼
 
-┌─────────────────┐ ┌─────────────────────┐
-│ Passive Mode │ │ Active Mode │
-│ (Scapy sniff) │ │ (pydivert/WinDivert) │
-│ Log & analyze │ │ Inject TCP RST → │
-│ │ │ actually drop conn. │
-└─────────┬───────────┘ └───────────┬───────────┘
-│ │
-└──────────────┬──────────────┘
-▼
-┌───────────────────┐
-│ Redis │ (flows, blocked events,
-│ │ live blocklist, stats)
-└──────────┬──────────┘
-▼
-┌───────────────────┐
-│ FastAPI │ (REST API)
-└──────────┬──────────┘
-▼
-┌───────────────────┐
-│ Live Dashboard │ (HTML/JS, auto-refresh)
-└───────────────────┘
-
+```
+                    NETWORK TRAFFIC
+                          │
+                          ▼
+              ┌───────────────────────┐
+              │   Packet Capture       │  (Scapy)
+              │   IPv4 / IPv6          │
+              └───────────┬───────────┘
+                          │
+                          ▼
+              ┌───────────────────────┐
+              │   TLS SNI Parser       │  (manual byte-level parser,
+              │   + Flow Reassembly    │   handles fragmented ClientHello)
+              └───────────┬───────────┘
+                          │
+                          ▼
+              ┌───────────────────────┐
+              │   Policy Engine        │  (Redis Set — live blocklist)
+              │   ALLOW / BLOCK        │
+              └───────────┬───────────┘
+                          │
+              ┌───────────┴───────────┐
+              ▼                       ▼
+   ┌─────────────────┐     ┌─────────────────────┐
+   │  Passive Mode     │     │  Active Mode          │
+   │  (Scapy sniff)     │     │  (pydivert/WinDivert) │
+   │  Log & analyze     │     │  Inject TCP RST →     │
+   │                     │     │  actually drop conn.  │
+   └─────────┬───────────┘     └───────────┬───────────┘
+             │                             │
+             └──────────────┬──────────────┘
+                            ▼
+                  ┌───────────────────┐
+                  │      Redis          │  (flows, blocked events,
+                  │                     │   live blocklist, stats)
+                  └──────────┬──────────┘
+                            ▼
+                  ┌───────────────────┐
+                  │     FastAPI          │  (REST API)
+                  └──────────┬──────────┘
+                            ▼
+                  ┌───────────────────┐
+                  │   Live Dashboard     │  (HTML/JS, auto-refresh)
+                  └───────────────────┘
+```
 
 ---
 
@@ -99,36 +100,37 @@ A real-time **Deep Packet Inspection (DPI)** system that captures live network t
 
 ## 📁 Project Structure
 
+```
 backend/
 ├── app/
-│ ├── main.py # FastAPI entrypoint
-│ ├── core/
-│ │ ├── config.py # Settings (.env driven)
-│ │ └── redis.py # Redis client
-│ ├── api/
-│ │ ├── flows.py # GET /api/flows
-│ │ ├── statistics.py # GET /api/statistics
-│ │ ├── alerts.py # GET /api/alerts/*
-│ │ └── policy.py # GET/POST/DELETE /api/policy/blocklist
-│ └── schemas/ # Pydantic request/response models
+│   ├── main.py                 # FastAPI entrypoint
+│   ├── core/
+│   │   ├── config.py            # Settings (.env driven)
+│   │   └── redis.py             # Redis client
+│   ├── api/
+│   │   ├── flows.py             # GET /api/flows
+│   │   ├── statistics.py        # GET /api/statistics
+│   │   ├── alerts.py            # GET /api/alerts/*
+│   │   └── policy.py            # GET/POST/DELETE /api/policy/blocklist
+│   └── schemas/                 # Pydantic request/response models
 │
 ├── dpi/
-│ ├── capture/
-│ │ └── sniffer.py # Passive packet capture (Scapy)
-│ ├── parser/
-│ │ └── packet_parser.py # 5-tuple + TLS SNI extraction
-│ ├── flows/
-│ │ └── flow_tracker.py # Bidirectional flow tracking → Redis
-│ ├── policies/
-│ │ └── blocklist.py # Redis-backed live blocklist
-│ └── enforcement/
-│ └── blocker.py # Active blocking via pydivert
+│   ├── capture/
+│   │   └── sniffer.py           # Passive packet capture (Scapy)
+│   ├── parser/
+│   │   └── packet_parser.py     # 5-tuple + TLS SNI extraction
+│   ├── flows/
+│   │   └── flow_tracker.py      # Bidirectional flow tracking → Redis
+│   ├── policies/
+│   │   └── blocklist.py         # Redis-backed live blocklist
+│   └── enforcement/
+│       └── blocker.py           # Active blocking via pydivert
 │
-├── dashboard.html # Standalone live dashboard
-├── run_capture.py # Entry point: passive monitoring
-├── run_blocker.py # Entry point: active blocking
+├── dashboard.html                # Standalone live dashboard
+├── run_capture.py                # Entry point: passive monitoring
+├── run_blocker.py                # Entry point: active blocking
 └── requirements.txt
-
+```
 
 ---
 
